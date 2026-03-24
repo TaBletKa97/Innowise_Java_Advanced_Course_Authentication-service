@@ -1,8 +1,8 @@
 name: push-workflow
-on: [push, workflow_dispatch]
+on: [ push, workflow_dispatch ]
 
 jobs:
-  build-test-and-analytics :
+  build-test-and-analytics:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -14,6 +14,8 @@ jobs:
           java-version: 25
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
+      - name: Make gradlew executable
+        run: chmod +x gradlew
       - name: Build with Gradle and creating test reports
         run: ./gradlew build jacocoTestReport
       - name: Analyze
