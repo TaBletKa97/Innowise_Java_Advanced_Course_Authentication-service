@@ -18,6 +18,8 @@ jobs:
         run: chmod +x gradlew
       - name: Build with Gradle and creating test reports
         run: ./gradlew build jacocoTestReport
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
       - name: Analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
