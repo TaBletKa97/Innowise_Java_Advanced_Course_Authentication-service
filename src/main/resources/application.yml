@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: Innowise_Java_Advanced_Course_Authentication-service
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATABASE_URL:jdbc:postgresql://localhost:5433/postgres}
+    username: ${SPRING_DATABASE_USERNAME:postgres}
+    password: ${SPRING_DATABASE_PASSWORD:postgres}
+
+  liquibase:
+    change-log: classpath:/db/changelog/main-changelog.xml
+    enabled: true
+
+server:
+  port: 8081
+
+jwt:
+  access-lifetime: 30m
+  refresh-lifetime: 300m
