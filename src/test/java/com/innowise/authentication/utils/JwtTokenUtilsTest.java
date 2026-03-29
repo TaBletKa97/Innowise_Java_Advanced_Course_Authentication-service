@@ -32,15 +32,15 @@ class JwtTokenUtilsTest {
 
     @Test
     void generateAccessToken_ShouldCreateValidToken() {
-
-
-        String token = jwtTokenUtils.generateAccessToken(credentials);
+        final String email = "test@mail.com";
+        final String token = jwtTokenUtils.generateAccessToken(credentials);
 
         assertNotNull(token);
-        assertEquals("test@mail.com", jwtTokenUtils.getLogin(token));
+        assertEquals(email, jwtTokenUtils.getLogin(token));
         assertEquals("USER", jwtTokenUtils.getRole(token));
         assertEquals(1L, jwtTokenUtils.getUserId(token));
-        assertTrue(jwtTokenUtils.validateJwtToken(token));
+        assertEquals(email, jwtTokenUtils.getLogin(token));
+
     }
 
     @Test
@@ -60,15 +60,4 @@ class JwtTokenUtilsTest {
 
         assertFalse(isValid);
     }
-
-    @Test
-    void validateJwtToken_ShouldReturnFalseForInvalidToken() {
-        String invalidToken = "eyJhbGciOiJIUzI1NiJ9.invalid.payload";
-
-        boolean isValid = jwtTokenUtils.validateJwtToken(invalidToken);
-
-        assertFalse(isValid);
-    }
 }
-
-//git actions

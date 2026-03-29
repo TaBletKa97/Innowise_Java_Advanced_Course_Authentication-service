@@ -2,6 +2,7 @@ package com.innowise.authentication.utils;
 
 import com.innowise.authentication.repository.entity.UserCredentials;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -65,29 +66,16 @@ public class JwtTokenUtils {
     }
 
     public Claims getClaimsFromToken(String token) {
-        return Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-    }
-
-    public boolean validateJwtToken(String token) {
-        try {
-            Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
-            return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            log.debug(VALIDATION_ERROR, e.getMessage());
-        }
-        return false;
+        return getJwtClaims(token).getPayload();
     }
 
     public boolean isValidRefreshToken(String token) {
+
         try {
-            Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            Claims claims = getJwtClaims(token).getPayload();
             return claims.get(TYPE).equals(TokenType.REFRESH_TOKEN.toString());
         } catch (JwtException | IllegalArgumentException e) {
-            log.debug(VALIDATION_ERROR, e.getMessage());
+            log.debug(VALIDATION_ERROR, e.getMessage(), e);
         }
         return false;
     }
@@ -104,6 +92,9 @@ public class JwtTokenUtils {
         return getClaimsFromToken(token).get(ID, Long.class);
     }
 
+    private Jws<Claims> getJwtClaims(String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
+    }
 
     private enum TokenType {
         ACCESS_TOKEN,

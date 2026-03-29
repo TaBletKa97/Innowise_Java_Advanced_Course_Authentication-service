@@ -2,8 +2,11 @@ package com.innowise.authentication.controller;
 
 import com.innowise.authentication.repository.entity.Role;
 import com.innowise.authentication.service.AuthService;
+import com.innowise.authentication.service.dto.LoginRequestDto;
 import com.innowise.authentication.service.dto.RegistrationRequestDto;
 import com.innowise.authentication.service.dto.RegistrationResponseDto;
+import com.innowise.authentication.utils.JwtTokenUtils;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,11 +23,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.Map;
 
-import static com.innowise.authentication.utils.Constants.ACCESS_TOKEN;
-import static com.innowise.authentication.utils.Constants.REFRESH_TOKEN;
+import static com.innowise.authentication.utils.Constants.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -50,13 +55,26 @@ class AuthenticationControllerTest {
     @MockitoBean
     private AuthService authService;
 
+    @MockitoBean
+    private JwtTokenUtils tokenUtils;
+
+    @BeforeEach
+    void setUp() {
+        when(tokenUtils.getLogin(anyString())).thenReturn("login");
+        when(tokenUtils.getUserId(anyString())).thenReturn(1L);
+        when(tokenUtils.getRole(anyString())).thenReturn("ADMIN");
+    }
+
     @Test
     void validateToken() throws Exception {
-        when(authService.validateToken(any())).thenReturn(true);
+        Map<String, String> response = new HashMap<>();
+        response.put(ACCESS_TOKEN, "token");
+        response.put(REFRESH_TOKEN, "token");
+        when(authService.validateToken(any())).thenReturn(response);
 
-        mockMvc.perform(get("/validate"))
+        mockMvc.perform(get("/validate").header(HEADER_AUTHORIZATION, "Bearer token"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("true"));
+                .andExpect(content().string(objectMapper.writeValueAsString(response)));
     }
 
     @Test
@@ -65,6 +83,7 @@ class AuthenticationControllerTest {
         var expectedResponse = Map.of(ACCESS_TOKEN, "at", REFRESH_TOKEN, "rt");
 
         when(authService.refresh(any())).thenReturn(expectedResponse);
+        when(tokenUtils.isValidRefreshToken(anyString())).thenReturn(true);
 
         mockMvc.perform(post("/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -79,7 +98,7 @@ class AuthenticationControllerTest {
     @Test
     void register() throws Exception {
         final String email = "user@gmail.com";
-        var request = new RegistrationRequestDto(email, "password");
+        var request = new RegistrationRequestDto(email, "password", "name", "surname", LocalDate.of(1970, 1, 1));
 
         when(authService.register(any())).thenReturn(
                 new RegistrationResponseDto(1L, email, Role.USER));
@@ -96,7 +115,7 @@ class AuthenticationControllerTest {
     @Test
     void login() throws Exception {
         final String email = "user@gmail.com";
-        var request = new RegistrationRequestDto(email, "password");
+        var request = new LoginRequestDto(email, "password");
         var expectedResponse = Map.of(ACCESS_TOKEN, "at", REFRESH_TOKEN, "rt");
 
         when(authService.login(any())).thenReturn(expectedResponse);

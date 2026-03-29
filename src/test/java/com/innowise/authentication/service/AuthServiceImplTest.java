@@ -3,12 +3,13 @@ package com.innowise.authentication.service;
 import com.innowise.authentication.exceptions.BadCredentialsException;
 import com.innowise.authentication.exceptions.RefreshTokenException;
 import com.innowise.authentication.exceptions.UserAlreadyExistException;
+import com.innowise.authentication.external.UserHttpClient;
 import com.innowise.authentication.repository.UserCredentialsRepository;
 import com.innowise.authentication.repository.entity.Role;
 import com.innowise.authentication.repository.entity.UserCredentials;
 import com.innowise.authentication.service.dto.LoginRequestDto;
 import com.innowise.authentication.service.dto.RegistrationRequestDto;
-import com.innowise.authentication.service.dto.RegistrationResponseDto;
+import com.innowise.authentication.service.dto.UserRegistrationRequestDto;
 import com.innowise.authentication.service.dto.mapper.CredentialsMapper;
 import com.innowise.authentication.utils.JwtTokenUtils;
 import org.junit.jupiter.api.Test;
@@ -16,10 +17,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +29,7 @@ import java.util.Optional;
 import static com.innowise.authentication.utils.Constants.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,46 +43,23 @@ class AuthServiceImplTest {
     BCryptPasswordEncoder bCryptPasswordEncoder;
 
     @Mock
-    CredentialsMapper credentialsMapper;
+    JwtTokenUtils tokenUtils;
 
     @Mock
-    JwtTokenUtils jwtTokenUtils;
+    CredentialsMapper mapper;
+
+    @Mock
+    UserHttpClient httpClient;
+
+    @Mock
+    RedisTemplate<String, String> redisTemplate;
+
+    @Mock
+    ValueOperations<String, String> valueOperations;
 
     @InjectMocks
     AuthServiceImpl authServiceImpl;
 
-    @Test
-    void registerNormalFlowTest() {
-        final String username = "username";
-        final String password = "password";
-        final String encodedPass = "encodedPass";
-        RegistrationRequestDto registrationRequestDto =
-                new RegistrationRequestDto(username, password);
-        var expectedResponse = new RegistrationResponseDto(1L, username, Role.USER);
-
-        when(userRepository.existsByEmail(username)).thenReturn(false);
-        when(bCryptPasswordEncoder.encode(password)).thenReturn(encodedPass);
-        when(credentialsMapper.entityToResponse(any())).thenReturn(expectedResponse);
-
-        authServiceImpl.register(registrationRequestDto);
-
-        verify(userRepository).existsByEmail(username);
-        verify(userRepository).saveAndFlush(any());
-        verify(credentialsMapper).entityToResponse(any());
-        verify(bCryptPasswordEncoder).encode(password);
-    }
-
-    @Test
-    void registerThrowsUserAlreadyExistsException() {
-        final String username = "username";
-        final String password = "password";
-        var registrationRequestDto = new RegistrationRequestDto(username, password);
-
-        when(userRepository.existsByEmail(username)).thenReturn(true);
-
-        assertThrows(UserAlreadyExistException.class, () ->
-                authServiceImpl.register(registrationRequestDto));
-    }
 
     @Test
     void login() {
@@ -96,30 +76,34 @@ class AuthServiceImplTest {
         when(userRepository.findByEmail(username))
                 .thenReturn(Optional.of(userCredentials));
         when(bCryptPasswordEncoder.matches(password, encodedPass)).thenReturn(true);
-        when(jwtTokenUtils.generateAccessToken(any())).thenReturn(accessToken);
-        when(jwtTokenUtils.generateRefreshToken(any())).thenReturn(refreshToken);
+        when(tokenUtils.generateAccessToken(any())).thenReturn(accessToken);
+        when(tokenUtils.generateRefreshToken(any())).thenReturn(refreshToken);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
         Map<String, String> login = authServiceImpl.login(requestDto);
 
         verify(userRepository).findByEmail(username);
         verify(bCryptPasswordEncoder).matches(password, encodedPass);
-        verify(jwtTokenUtils).generateAccessToken(userCredentials);
-        verify(jwtTokenUtils).generateRefreshToken(userCredentials);
+        verify(tokenUtils).generateAccessToken(userCredentials);
+        verify(tokenUtils).generateRefreshToken(userCredentials);
 
         assertEquals(accessToken, login.get("accessToken"));
         assertEquals(refreshToken, login.get("refreshToken"));
     }
 
     @Test
-    void loginThrowsUsernameNotFoundException() {
-        final String username = "username";
-        final String password = "password";
-        var requestDto = new LoginRequestDto(username, password);
+    void logoutRemovesRefreshToken() {
+        String token = "validToken";
+        String login = "user@example.com";
 
-        when(userRepository.findByEmail(username)).thenReturn(Optional.empty());
+        when(tokenUtils.getLogin(any())).thenReturn(login);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.getAndDelete(REFRESH_TOKEN + login)).thenReturn("oldAccessToken");
 
-        assertThrows(UsernameNotFoundException.class, () ->
-                authServiceImpl.login(requestDto));
+        authServiceImpl.logout(token);
+
+        verify(tokenUtils).getLogin(token);
+        verify(valueOperations).getAndDelete(REFRESH_TOKEN + login);
     }
 
     @Test
@@ -140,24 +124,19 @@ class AuthServiceImplTest {
 
     @Test
     void validateTokenNormalFlow() {
-        var request = new MockHttpServletRequest();
-        String header = "Bearer token";
-        request.addHeader(HEADER_AUTHORIZATION, header);
+        String token = "token";
+        Long id = 1L;
+        Role role = Role.USER;
 
-        when(jwtTokenUtils.validateJwtToken(any())).thenReturn(true);
+        when(tokenUtils.getUserId(any())).thenReturn(id);
+        when(tokenUtils.getRole(any())).thenReturn(role.toString());
 
-        assertTrue(authServiceImpl.validateToken(request));
-    }
+        Map<String, String> claims = authServiceImpl.validateToken(token);
 
-    @Test
-    void validateTokenNegativeScenario() {
-        var request = new MockHttpServletRequest();
-
-        assertFalse(authServiceImpl.validateToken(request));
-
-        request.addHeader(HEADER_AUTHORIZATION, "");
-
-        assertFalse(authServiceImpl.validateToken(request));
+        assertTrue(claims.containsKey(USER_ID));
+        assertTrue(claims.containsKey(USER_ROLE));
+        assertEquals(String.valueOf(id), claims.get(USER_ID));
+        assertEquals(role.toString(), claims.get(USER_ROLE));
     }
 
     @Test
@@ -171,11 +150,13 @@ class AuthServiceImplTest {
         requestTokens.put(REFRESH_TOKEN, oldRefreshToken);
         requestTokens.put(ACCESS_TOKEN, oldAccessToken);
 
-        when(jwtTokenUtils.isValidRefreshToken(any())).thenReturn(true);
-        when(jwtTokenUtils.getLogin(any())).thenReturn("");
+        when(tokenUtils.isValidRefreshToken(any())).thenReturn(true);
+        when(tokenUtils.getLogin(any())).thenReturn("");
         when(userRepository.findByEmail(any())).thenReturn(Optional.of(new UserCredentials()));
-        when(jwtTokenUtils.generateAccessToken(any())).thenReturn(accessToken);
-        when(jwtTokenUtils.generateRefreshToken(any())).thenReturn(refreshToken);
+        when(tokenUtils.generateAccessToken(any())).thenReturn(accessToken);
+        when(tokenUtils.generateRefreshToken(any())).thenReturn(refreshToken);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.getAndDelete(any())).thenReturn(oldAccessToken);
 
         Map<String, String> refresh = authServiceImpl.refresh(requestTokens);
         assertEquals(accessToken, refresh.get(ACCESS_TOKEN));
@@ -189,7 +170,51 @@ class AuthServiceImplTest {
         assertThrows(RefreshTokenException.class, () -> authServiceImpl.refresh(requestTokens));
 
         requestTokens.put(REFRESH_TOKEN, "");
-        when(jwtTokenUtils.isValidRefreshToken(any())).thenReturn(false);
+        when(tokenUtils.isValidRefreshToken(any())).thenReturn(false);
         assertThrows(RefreshTokenException.class, () -> authServiceImpl.refresh(requestTokens));
+    }
+
+    @Test
+    void registerThrowsUserAlreadyExistException() {
+        final String email = "existing@example.com";
+        final String password = "password";
+        final String name = "John";
+        final String surname = "Doe";
+        final LocalDate birthDate = LocalDate.of(1990, 1, 1);
+        final RegistrationRequestDto request = new RegistrationRequestDto(email, password, name, surname, birthDate);
+
+        when(userRepository.existsByEmail(any())).thenReturn(true);
+
+        assertThrows(UserAlreadyExistException.class, () -> authServiceImpl.register(request));
+    }
+
+    @Test
+    void registerSuccessful() {
+        final String email = "new@example.com";
+        final String password = "password";
+        final String name = "John";
+        final String surname = "Doe";
+        final LocalDate birthDate = LocalDate.of(1990, 1, 1);
+        final UserCredentials credentials = new UserCredentials(email, password, Role.USER);
+        credentials.setId(1L);
+        final RegistrationRequestDto request =
+                new RegistrationRequestDto(email, password, name, surname, birthDate);
+        final UserRegistrationRequestDto userRegistrationRequestDto =
+                new UserRegistrationRequestDto(1L, name, surname, birthDate, email, true);
+
+
+        when(userRepository.existsByEmail(any())).thenReturn(false);
+        when(userRepository.saveAndFlush(any())).thenReturn(credentials);
+        when(mapper.prepareRequestPassword(any(), eq(request))).thenReturn(userRegistrationRequestDto);
+        when(httpClient.createUser(any(UserRegistrationRequestDto.class))).thenReturn(null);
+        when(mapper.entityToResponse(any())).thenReturn(null);
+
+        authServiceImpl.register(request);
+
+        verify(userRepository).existsByEmail(email);
+        verify(userRepository).saveAndFlush(any(UserCredentials.class));
+        verify(httpClient).createUser(userRegistrationRequestDto);
+        verify(mapper).prepareRequestPassword(any(), any());
+        verify(mapper).entityToResponse(any());
     }
 }

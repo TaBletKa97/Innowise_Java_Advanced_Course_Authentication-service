@@ -16,6 +16,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:8.6.1-alpine
+    restart: on-failure
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   app:
     image: authservice
     restart: on-failure
@@ -23,6 +36,8 @@ services:
       - "8081:8081"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
     environment:
@@ -33,3 +48,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

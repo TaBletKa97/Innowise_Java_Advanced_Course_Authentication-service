@@ -1,8 +1,8 @@
 package com.innowise.authentication.service.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
+
+import java.time.LocalDate;
 
 public record RegistrationRequestDto(
         @Email
@@ -11,6 +11,18 @@ public record RegistrationRequestDto(
 
         @NotNull
         @Size(min = 8)
-        String password
+        String password,
+
+        @NotBlank
+        @Size(min = 2, max = 50)
+        String name,
+
+        @NotBlank
+        @Size(min = 2, max = 50)
+        String surname,
+
+        @NotNull
+        @Past
+        LocalDate birthDate
 ) {
 }

@@ -3,10 +3,8 @@ package com.innowise.authentication.service.dto.mapper;
 import com.innowise.authentication.repository.entity.UserCredentials;
 import com.innowise.authentication.service.dto.RegistrationResponseDto;
 import com.innowise.authentication.service.dto.RegistrationRequestDto;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingConstants;
-import org.mapstruct.ReportingPolicy;
+import com.innowise.authentication.service.dto.UserRegistrationRequestDto;
+import org.mapstruct.*;
 
 @Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE,
         componentModel = MappingConstants.ComponentModel.SPRING)
@@ -16,4 +14,8 @@ public interface CredentialsMapper {
     UserCredentials requestToEntity(RegistrationRequestDto request);
 
     RegistrationResponseDto entityToResponse(UserCredentials credentials);
+
+    @Mapping(target = "active", constant = "true")
+    @Mapping(target = "id", expression = "java(id)")
+    UserRegistrationRequestDto prepareRequestPassword(@Context Long id, RegistrationRequestDto requestDto);
 }
