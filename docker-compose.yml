@@ -7,11 +7,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
     environment:
-      POSTGRES_USER: ${SPRING_DATASOURCE_USERNAME}
-      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
-      POSTGRES_DB: ${SPRING_DATASOURCE_NAME}
+      POSTGRES_USER: ${SPRING_DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${SPRING_DATABASE_PASSWORD}
+      POSTGRES_DB: ${SPRING_DATABASE_NAME}
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${SPRING_DATASOURCE_USERNAME} -d ${SPRING_DATASOURCE_NAME}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${SPRING_DATABASE_USERNAME} -d ${SPRING_DATABASE_NAME}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -40,11 +40,8 @@ services:
       redis:
         condition: service_healthy
 
-    environment:
-      SPRING_DATABASE_URL: ${SPRING_DATASOURCE_URL}
-      SPRING_DATABASE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
-      SPRING_DATABASE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
+    env_file:
+      - .env
 
 volumes:
   postgres_data:

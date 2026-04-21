@@ -1,5 +1,6 @@
 package com.innowise.authentication;
 import com.innowise.authentication.utils.JwtTokenUtils;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,7 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
-import static com.innowise.authentication.utils.Constants.BEARER;
+import static com.innowise.authentication.utils.Constants.*;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 
 @Slf4j
@@ -33,7 +34,9 @@ public class JwtSecurityFilter extends OncePerRequestFilter {
         String header = request.getHeader(AUTHORIZATION);
         String token;
 
-        log.debug("Filtering request for JWT Token");
+        log.debug(request.getRequestURI());
+
+        log.debug("Filtering request for JWT Token {}", header);
         if (header != null && header.startsWith(BEARER)) {
             token = header.substring(BEARER.length());
         } else {
@@ -51,7 +54,10 @@ public class JwtSecurityFilter extends OncePerRequestFilter {
             role = tokenUtils.getRole(token);
         } catch (Exception e) {
             log.error(e.getMessage(), e);
+            String error = e.getClass().equals(ExpiredJwtException.class) ?
+                    TOKEN_EXPIRED_ERROR : TOKEN_ERROR;
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write(error);
             return;
         }
 
