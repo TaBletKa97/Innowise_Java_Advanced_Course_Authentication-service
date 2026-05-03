@@ -25,8 +25,8 @@ public class SecurityConfig {
                 .cors(AbstractHttpConfigurer::disable)
                 .addFilterBefore(jwtSecurityFilter, UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers("/actuator/health/*").permitAll()
                         .requestMatchers("/login", "/register", "/refresh").permitAll()
-                        .requestMatchers("/actuator/health/liveness").permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
