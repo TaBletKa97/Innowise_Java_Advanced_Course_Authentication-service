@@ -13,6 +13,8 @@ public class Constants {
     public static final String REFRESH_TOKEN_ABSENCE_MSG = "You should provide a refresh token.";
     public static final String REFRESH_TOKEN_NOT_VALID_MSG = "You should provide a valid refresh token.";
     public static final String USER_WAS_LOGGED_OUT_MSG = "User was logged out.";
+    public static final String TOKEN_EXPIRED_ERROR = "Token has expired.";
+    public static final String TOKEN_ERROR = "Token is invalid.";
 
     public static final String REFRESH_TOKEN = "refreshToken";
     public static final String ACCESS_TOKEN = "accessToken";

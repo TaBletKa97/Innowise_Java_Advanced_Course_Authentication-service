@@ -15,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -80,10 +79,11 @@ public class AuthServiceImpl implements AuthService {
         log.debug("Login request: {}", request);
 
         UserCredentials userCredentials = repository.findByEmail(request.email())
-                .orElseThrow(() -> new UsernameNotFoundException(USERNAME_NOT_FOUND_MSG));
+                .orElseThrow(() -> new BadCredentialsException(USERNAME_NOT_FOUND_MSG));
 
         if (!userCredentials.getEmail().equals(request.email()) ||
-                !passwordEncoder.matches(request.password(), userCredentials.getPasswordHash())) {
+                !passwordEncoder.matches(request.password(),
+                        userCredentials.getPasswordHash())) {
             throw new BadCredentialsException(WRONG_CREDENTIALS_MSG);
         }
 
@@ -123,7 +123,8 @@ public class AuthServiceImpl implements AuthService {
         }
         String login = tokenUtils.getLogin(tokens.get(REFRESH_TOKEN));
 
-        String oldToken = redisTemplate.opsForValue().getAndDelete(REFRESH_TOKEN + login);
+        String oldToken = redisTemplate.opsForValue()
+                .getAndDelete(REFRESH_TOKEN + login);
         if (oldToken == null) {
             throw  new RefreshTokenException(USER_WAS_LOGGED_OUT_MSG);
         }
@@ -137,7 +138,8 @@ public class AuthServiceImpl implements AuthService {
         response.put(ACCESS_TOKEN, newAccessToken);
         response.put(REFRESH_TOKEN, newRefreshToken);
 
-        redisTemplate.opsForValue().set(REFRESH_TOKEN + login, newRefreshToken, jwtRefreshLifetime);
+        redisTemplate.opsForValue().set(REFRESH_TOKEN + login,
+                newRefreshToken, jwtRefreshLifetime);
 
         return response;
     }
@@ -145,6 +147,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout(String token) {
         String login = tokenUtils.getLogin(token);
+        log.debug("Logout for user: {} with token {}", login, token);
         redisTemplate.opsForValue().getAndDelete(REFRESH_TOKEN + login);
     }
 }

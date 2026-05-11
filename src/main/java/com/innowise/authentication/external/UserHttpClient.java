@@ -9,7 +9,8 @@ import org.springframework.web.service.annotation.PostExchange;
 @HttpExchange(
         accept = "application/json",
         contentType = "application/json",
-        url = "${USER_SERVICE_URL}"
+        url = "${USER_SERVICE_URL}",
+        headers = {"user_id=1", "role=ADMIN"}
 )
 public interface UserHttpClient {
 
